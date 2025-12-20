@@ -1,0 +1,64 @@
+function trafo_app()
+    % Ana Pencere Ayarları
+    fig = uifigure('Name', 'Trafo Hesaplama Paneli', 'Position', [100 100 800 500]);
+
+    % --- GİRİŞ ALANLARI (SOL PANEL) ---
+    uilabel(fig, 'Text', 'HV Faz Gerilimi (V):', 'Position', [20 420 120 20]);
+    hvInput = uieditfield(fig, 'numeric', 'Position', [150 420 80 20], 'Value', 7970);
+
+    uilabel(fig, 'Text', 'LV Faz Gerilimi (V):', 'Position', [20 380 120 20]);
+    lvInput = uieditfield(fig, 'numeric', 'Position', [150 380 80 20], 'Value', 266);
+
+    uilabel(fig, 'Text', 'Güç (kVA):', 'Position', [20 340 120 20]);
+    sInput = uieditfield(fig, 'numeric', 'Position', [150 340 80 20], 'Value', 25);
+
+    uilabel(fig, 'Text', 'Reaktans (%):', 'Position', [20 300 120 20]);
+    xInput = uieditfield(fig, 'numeric', 'Position', [150 300 80 20], 'Value', 7.5);
+
+    % --- ÇIKIŞ ALANLARI (SAĞ PANEL) ---
+    resTable = uitable(fig, 'Position', [260 300 500 150], ...
+        'ColumnName', {'Parametre', 'Değer'}, 'ColumnWidth', {320, 150});
+    
+    ax = uiaxes(fig, 'Position', [260 40 500 240]);
+
+    % --- HESAPLAMA BUTONU ---
+    btn = uibutton(fig, 'push', 'Text', 'HESAPLA', ...
+        'Position', [20 230 210 40], 'BackgroundColor', [.1 .5 .8], 'FontColor', 'w', ...
+        'ButtonPushedFcn', @(btn, event) hesapla());
+
+    % Hesapla Fonksiyonu
+    function hesapla()
+        % Değerleri çek
+        Vhv = hvInput.Value;
+        Vlv = lvInput.Value;
+        S = sInput.Value * 1000;
+        Xpu = xInput.Value / 100;
+
+        % Matematiksel İşlemler
+        X_lv_ohm = Xpu * (Vlv^2 / S);
+        X_hv_ohm = Xpu * (Vhv^2 / S);
+        
+        % Y-Y ve Y-Delta Hat Gerilimleri
+        Vhv_line = Vhv * sqrt(3);
+        Vlv_YY_line = Vlv * sqrt(3);
+        Vlv_D_line = Vlv;
+
+        % Tabloyu doldur
+        resTable.Data = {
+            'a(i) LV Reaktans (Ohm)', round(X_lv_ohm, 4);
+            'a(ii) HV Reaktans (Ohm)', round(X_hv_ohm, 2);
+            'b(i) 3-Faz Güç (kVA)', (S*3)/1000;
+            'b(i) Y-Y Hat Gerilimleri (HV/LV)', sprintf('%.0f / %.0f', Vhv_line, Vlv_YY_line);
+            'c(i) Y-D Hat Gerilimleri (HV/LV)', sprintf('%.0f / %.0f', Vhv_line, Vlv_D_line)
+        };
+
+        % Grafik Çiz
+        bar(ax, [Vhv, Vhv_line, Vhv_line; Vlv, Vlv_YY_line, Vlv_D_line]');
+        set(ax, 'XTickLabel', {'Tek Faz', 'Y-Y', 'Y-Delta'});
+        legend(ax, {'HV (V)', 'LV (V)'});
+        title(ax, 'Bağlantı Tipine Göre Gerilim Seviyeleri');
+    end
+
+    % İlk açılışta hesapla
+    hesapla();
+end
