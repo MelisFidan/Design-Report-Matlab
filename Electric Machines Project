@@ -1,0 +1,160 @@
+function synchronous_generator_gui
+    % Create the main window using classic figure (compatible with all MATLAB versions)
+    fig = figure('Name', 'Synchronous Generator Analyzer', ...
+                 'NumberTitle', 'off', ...
+                 'MenuBar', 'none', ...
+                 'Position', [200, 200, 850, 500]);
+    
+    % ---- INPUT PANEL ----
+    pnlInput = uipanel(fig, 'Title', 'Input Parameters', 'Position', [0.03, 0.25, 0.35, 0.70]);
+    
+    uicontrol(pnlInput, 'Style', 'text', 'String', 'Internal Voltage (E_A, l-l) [kV]:', ...
+              'Units', 'normalized', 'Position', [0.05, 0.82, 0.50, 0.08], 'HorizontalAlignment', 'left');
+    txtEA = uicontrol(pnlInput, 'Style', 'edit', 'String', '14.4', ...
+              'Units', 'normalized', 'Position', [0.60, 0.82, 0.35, 0.10]);
+    
+    uicontrol(pnlInput, 'Style', 'text', 'String', 'Terminal Voltage (V_T, l-l) [kV]:', ...
+              'Units', 'normalized', 'Position', [0.05, 0.64, 0.50, 0.08], 'HorizontalAlignment', 'left');
+    txtVT = uicontrol(pnlInput, 'Style', 'edit', 'String', '12.8', ...
+              'Units', 'normalized', 'Position', [0.60, 0.64, 0.35, 0.10]);
+    
+    uicontrol(pnlInput, 'Style', 'text', 'String', 'Synchronous Reactance (X_s) [\Omega]:', ...
+              'Units', 'normalized', 'Position', [0.05, 0.46, 0.50, 0.08], 'HorizontalAlignment', 'left');
+    txtXs = uicontrol(pnlInput, 'Style', 'edit', 'String', '4.0', ...
+              'Units', 'normalized', 'Position', [0.60, 0.46, 0.35, 0.10]);
+    
+    uicontrol(pnlInput, 'Style', 'text', 'String', 'Torque Angle (\delta) [^\circ]:', ...
+              'Units', 'normalized', 'Position', [0.05, 0.28, 0.50, 0.08], 'HorizontalAlignment', 'left');
+    txtDelta = uicontrol(pnlInput, 'Style', 'edit', 'String', '18', ...
+              'Units', 'normalized', 'Position', [0.60, 0.28, 0.35, 0.10]);
+    
+    uicontrol(pnlInput, 'Style', 'text', 'String', 'Synchronous Speed (n_s) [rpm]:', ...
+              'Units', 'normalized', 'Position', [0.05, 0.10, 0.50, 0.08], 'HorizontalAlignment', 'left');
+    txtNs = uicontrol(pnlInput, 'Style', 'edit', 'String', '1500', ...
+              'Units', 'normalized', 'Position', [0.60, 0.10, 0.35, 0.10]);
+    
+    % ---- BUTTON ----
+    btnCalculate = uicontrol(fig, 'Style', 'pushbutton', 'String', 'CALCULATE', ...
+                   'Units', 'normalized', 'Position', [0.03, 0.05, 0.35, 0.15], ...
+                   'BackgroundColor', [0.2, 0.6, 0.2], 'ForegroundColor', 'white', ...
+                   'FontSize', 12, 'FontWeight', 'bold');
+    
+    % ---- OUTPUT PANEL ----
+    pnlOutput = uipanel(fig, 'Title', 'Calculated Results', 'Position', [0.42, 0.65, 0.55, 0.30]);
+    
+    uicontrol(pnlOutput, 'Style', 'text', 'String', '(a) Supplied Active Power (P):', ...
+              'Units', 'normalized', 'Position', [0.05, 0.70, 0.45, 0.15], 'FontWeight', 'bold', 'HorizontalAlignment', 'left');
+    lblP = uicontrol(pnlOutput, 'Style', 'text', 'String', '-', ...
+              'Units', 'normalized', 'Position', [0.55, 0.70, 0.40, 0.15], 'ForegroundColor', 'blue', 'HorizontalAlignment', 'left');
+    
+    uicontrol(pnlOutput, 'Style', 'text', 'String', '(b) Power Factor (PF):', ...
+              'Units', 'normalized', 'Position', [0.05, 0.40, 0.45, 0.15], 'FontWeight', 'bold', 'HorizontalAlignment', 'left');
+    lblPF = uicontrol(pnlOutput, 'Style', 'text', 'String', '-', ...
+              'Units', 'normalized', 'Position', [0.55, 0.40, 0.40, 0.15], 'ForegroundColor', 'blue', 'HorizontalAlignment', 'left');
+    
+    uicontrol(pnlOutput, 'Style', 'text', 'String', '(d) Applied Shaft Torque (\tau_{ind}):', ...
+              'Units', 'normalized', 'Position', [0.05, 0.10, 0.45, 0.15], 'FontWeight', 'bold', 'HorizontalAlignment', 'left');
+    lblTorque = uicontrol(pnlOutput, 'Style', 'text', 'String', '-', ...
+              'Units', 'normalized', 'Position', [0.55, 0.10, 0.40, 0.15], 'ForegroundColor', 'blue', 'HorizontalAlignment', 'left');
+    
+    % ---- AXES FOR PLOT ----
+    ax = axes('Parent', fig, 'Units', 'normalized', 'Position', [0.45, 0.10, 0.50, 0.45]);
+    title(ax, '(c) Phasor Diagram (Per-Phase)');
+    grid(ax, 'on');
+    
+    % Assign callback function
+    set(btnCalculate, 'Callback', @(src, event) calculateButton_Callback(...
+        txtEA, txtVT, txtXs, txtDelta, txtNs, lblP, lblPF, lblTorque, ax));
+
+    % Trigger initial calculation
+    calculateButton_Callback(txtEA, txtVT, txtXs, txtDelta, txtNs, lblP, lblPF, lblTorque, ax);
+end
+
+function calculateButton_Callback(txtEA, txtVT, txtXs, txtDelta, txtNs, lblP, lblPF, lblTorque, ax)
+    % Read inputs from edit boxes
+    EA_ll = tragic_double(get(txtEA, 'String'));
+    VT_ll = tragic_double(get(txtVT, 'String'));
+    Xs = tragic_double(get(txtXs, 'String'));
+    delta_deg = tragic_double(get(txtDelta, 'String'));
+    n_s = tragic_double(get(txtNs, 'String'));
+    
+    % 1. Convert Line-to-Line values to Phase values (Y-connected)
+    E_A = (EA_ll * 1000) / sqrt(3); 
+    V_phi = (VT_ll * 1000) / sqrt(3); 
+    delta_rad = deg2rad(delta_deg);
+    
+    % 2. (a) Total Active Power Calculation
+    P_total = (3 * V_phi * E_A / Xs) * sin(delta_rad);
+    set(lblP, 'String', sprintf('%.2f MW', P_total / 1e6));
+    
+    % 3. (b) Power Factor Calculation
+    E_A_vec = E_A * (cos(delta_rad) + 1i * sin(delta_rad));
+    V_phi_vec = V_phi + 1i * 0;
+    I_A_vec = (E_A_vec - V_phi_vec) / (1i * Xs);
+    
+    theta_rad = angle(V_phi_vec) - angle(I_A_vec);
+    PF = cos(theta_rad);
+    
+    if theta_rad > 0
+        charStr = 'Lagging';
+    else
+        charStr = 'Leading';
+    end
+    set(lblPF, 'String', sprintf('%.4f (%s)', PF, charStr));
+    
+    % 4. (d) Shaft Torque Calculation
+    omega_s = (2 * pi * n_s) / 60; 
+    tau_ind = P_total / omega_s;
+    set(lblTorque, 'String', sprintf('%.2f Nm (@ %d rpm)', tau_ind, n_s));
+    
+    % 5. (c) Plotting the Phasor Diagram
+    cla(ax); 
+    axes(ax);
+    hold on;
+    
+    scale = 1000; 
+    V_p_plot = V_phi_vec / scale;
+    E_A_plot = E_A_vec / scale;
+    jXsIA_plot = (1i * Xs * I_A_vec) / scale;
+    
+    % V_phi Vector
+    quiver(0, 0, real(V_p_plot), imag(V_p_plot), 0, 'b', 'LineWidth', 2);
+    text(real(V_p_plot)/2, -0.2, 'V_{\phi}', 'Color', 'b', 'FontWeight', 'bold');
+    
+    % jXsIa Vector
+    quiver(real(V_p_plot), imag(V_p_plot), real(jXsIA_plot), imag(jXsIA_plot), 0, 'r--', 'LineWidth', 1.5);
+    text(real(V_p_plot) + real(jXsIA_plot)/2, imag(jXsIA_plot)/2, 'jX_sI_A', 'Color', 'r');
+    
+    % E_A Vector
+    quiver(0, 0, real(E_A_plot), imag(E_A_plot), 0, 'g', 'LineWidth', 2);
+    text(real(E_A_plot)/2, imag(E_A_plot)/2 + 0.2, 'E_A', 'Color', [0 0.5 0], 'FontWeight', 'bold');
+    
+    % I_A Vector (Scaled for visual clarity)
+    I_scale = (max(real(E_A_plot)) / abs(I_A_vec)) * 0.3; 
+    quiver(0, 0, real(I_A_vec)*I_scale, imag(I_A_vec)*I_scale, 0, 'm', 'LineWidth', 1.5);
+    text(real(I_A_vec)*I_scale, imag(I_A_vec)*I_scale, 'I_A (Scaled)', 'Color', 'm');
+    
+    max_val = max([abs(E_A_plot), abs(V_p_plot)]) * 1.2;
+    xlim([-max_val*0.1, max_val]);
+    ylim([-max_val*0.3, max_val*0.6]);
+    xlabel('Real Axis (kV)');
+    ylabel('Imaginary Axis (kV)');
+    title('(c) Phasor Diagram (Per-Phase)');
+    grid on;
+    hold off;
+end
+
+function val = tragic_double(str)
+    % Helper function to convert string to double safely
+    val = str2double(str);
+    if isnan(val)
+        val = 0;
+    end
+end
+
+
+
+
+
+
+
